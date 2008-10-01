@@ -1,0 +1,50 @@
+== ActsAsCacheable
+
+Adds capability for caching query results to any ActiveRecord object.
+Cached query results are stored as marshalled objects on the file system.
+This differs from ActiveRecord query cache in that these results are available
+across the entire application, and not just within the scope of a single action.
+
+== Example
+
+
+   class Book < ActiveRecord::Base
+     acts_as_cacheable :cache_path => "/tmp/cache/queries",
+       :queries => {
+         :all_books => [:all, {:order => "created_on"}],
+         :banned_books => [:all, {
+           :select => "author, title",
+           :conditions => "status = 'banned'",
+           :order => "title" }
+   end
+
+   class BooksController < ApplicationController
+     cache_sweeper :book_sweeper, :only => [:create, :update, :destroy]
+
+     def list_all_books
+       @books = Book.all_books
+     end
+
+     def list_banned_books
+       @books = Book.banned_books
+     end
+   end
+
+   class BookSweeper < ActionController::Caching::Sweeper
+     observe Book
+
+     def after_create(book)
+       Book.clear_cache
+     end
+
+     def after_update(book)
+       Book.clear_cache
+     end
+
+     def after_destroy(book)
+       Book.clear_cache
+     end
+   end
+
+
+Copyright (c) 2008 Eric Salczynski, released under the MIT license

@@ -1,0 +1,52 @@
+require "FileUtils"
+
+module Salczynski #:nodoc:
+  module Acts #:nodoc:
+    module Cacheable #:nodoc:
+      def self.included(base)
+        base.send :extend, ClassMethods
+      end
+    
+      module ClassMethods
+        def acts_as_cacheable(options = {})
+          write_inheritable_attribute :acts_as_cacheable_options, {
+            :cache_path => RAILS_ROOT + (options[:cache_path] || "/tmp/cache/queries"),
+            :queries => options[:queries] }
+          class_inheritable_reader :acts_as_cacheable_options
+          
+          unless options[:queries].blank?
+            options[:queries].each_key do |query|
+              Object.class_eval <<-EOV
+                def #{query}
+                  find_cached('#{query}')
+                end
+              EOV
+            end
+          end
+          
+          private
+          
+          def find_cached(query)
+            args = acts_as_cacheable_options[:queries][query.to_sym]
+            dir = acts_as_cacheable_options[:cache_path]
+            path = dir  + "/" + query
+            
+            if File.exists?(path)
+              cache = File.open path, 'r'
+              result = Marshal.load(cache.read)
+            else
+              result = find(*args)
+              FileUtils.mkdir_p dir
+              FileUtils.touch path
+              cache = File.open path, 'w'
+              cache.puts Marshal.dump(result)
+            end
+            cache.close
+
+            return result
+          end
+        end
+      end
+    end
+  end
+end
